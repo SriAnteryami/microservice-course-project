@@ -1,14 +1,14 @@
 locals {
-  ami_type               = "AL2_x86_64"
+  ami_type               =  "AL2023_x86_64_STANDARD"
   azs                    = slice(data.aws_availability_zones.available.names, 0, 3)
-  capacity_type          = "SPOT"
-  cluster_name           = "microservice-course-project"
-  cluster_version       = "1.29"
+  capacity_type          = "ON_DEMAND"
+  cluster_name           = "course-project"
+  cluster_version        =  "1.34"
   disk_size              = 30
   enable_cluster_creator = true
   enable_nat_gateway     = true
   enable_public_access   = true
-  instance_types         = ["t3.medium"]
+  instance_types         = ["t3.small"]
   node_desired_size      = 3
   node_max_size          = 5
   node_min_size          = 1
@@ -22,11 +22,11 @@ locals {
 
 }
 
-
+data "aws_availability_zones" "available" {}
 
 module "vpc" {
   source             = "terraform-aws-modules/vpc/aws"
-  version            = "6.7.3"
+  version            = "5.6.0"
   name               = "${local.cluster_name}-vpc" #microservice-course-project-vpc#
   azs                = local.azs
   cidr               = local.vpc_cidr
@@ -38,3 +38,38 @@ module "vpc" {
 
 
 }
+module "eks" {
+  source                                   = "terraform-aws-modules/eks/aws"
+  version                                  = "20.8.3"
+  control_plane_subnet_ids                 = module.vpc.intra_subnets
+  cluster_name                             = local.cluster_name
+  cluster_version                          = local.cluster_version
+  cluster_endpoint_public_access           = local.enable_public_access
+  enable_cluster_creator_admin_permissions = local.enable_cluster_creator
+  subnet_ids                               = module.vpc.private_subnets
+  vpc_id                                   = module.vpc.vpc_id
+
+  eks_managed_node_groups = {
+    course-project = {
+      ami_type       = local.ami_type
+      capacity_type  = local.capacity_type
+      disk_size      = local.disk_size
+      desired_size   = local.node_desired_size
+      instance_types = local.instance_types
+
+      launch_template_tags = {
+        Name = "${local.cluster_name}-node"
+      }
+
+
+      max_size = local.node_max_size
+      min_size = local.node_min_size
+
+
+    }
+  }
+}
+
+
+
+
